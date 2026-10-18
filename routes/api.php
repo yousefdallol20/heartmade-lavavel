@@ -52,6 +52,7 @@ Route::post('/orders', [
 ])->middleware('throttle:5,1');
 
 Route::prefix('admin')
+    ->name('admin.')
     ->middleware('auth:sanctum')
     ->group(function () {
         Route::apiResource(
