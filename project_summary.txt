@@ -1,0 +1,535 @@
+<?php
+
+namespace App\Http\Controllers;
+
+abstract class Controller
+{
+    //
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class AdminNotification extends Model
+{
+    protected $guarded = [];
+
+
+    protected $casts = [
+        'read_at' => 'datetime',
+    ];
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function inquiry(): BelongsTo
+    {
+        return $this->belongsTo(Inquiry::class);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Inquiry extends Model
+{
+    protected $guarded = [];
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Order extends Model
+{
+    public const STATUSES = [
+        'pending',
+        'confirmed',
+        'shipped',
+        'delivered',
+        'cancelled',
+    ];
+
+    protected $guarded = [];
+
+    protected $casts = [
+        'subtotal' => 'decimal:2',
+        'total' => 'decimal:2',
+        'delivered_at' => 'datetime',
+    ];
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function scopeDelivered(Builder $query): Builder
+    {
+        return $query->where('status', 'delivered');
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Order $order): void {
+            $wasDelivered = $order->exists
+                && $order->getOriginal('status') === 'delivered';
+
+            if (
+                $wasDelivered
+                && $order->isDirty('status')
+            ) {
+                throw new \DomainException(
+                    'A delivered order status cannot be changed.'
+                );
+            }
+
+            if ($wasDelivered && $order->isDirty('delivered_at')) {
+                throw new \DomainException(
+                    'The delivery date cannot be changed.'
+                );
+            }
+
+            if (
+                $order->status === 'delivered'
+                && ! $wasDelivered
+            ) {
+                $order->delivered_at = now();
+            } elseif ($order->status !== 'delivered') {
+                $order->delivered_at = null;
+            }
+        });
+    }
+
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+class OrderItem extends Model
+{
+    protected $guarded = [];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+        'qty' => 'integer',
+    ];
+
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
+    }
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Partner extends Model
+{
+    protected $guarded = [];
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+
+class Product extends Model
+{
+    protected $guarded = [];
+
+    protected $casts = [
+        'price' => 'decimal:2',
+        'stock' => 'integer',
+        'images' => 'array',
+    ];
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+}
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class Setting extends Model
+{
+    protected $guarded = [];
+}
+<?php
+
+namespace App\Models;
+
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    /** @use HasFactory<\Database\Factories\UserFactory> */
+    use HasFactory, Notifiable;
+
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+    ];
+
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+}
+
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('personal_access_tokens', function (Blueprint $table) {
+            $table->id();
+            $table->morphs('tokenable');
+            $table->text('name');
+            $table->string('token', 64)->unique();
+            $table->text('abilities')->nullable();
+            $table->timestamp('last_used_at')->nullable();
+            $table->timestamp('expires_at')->nullable()->index();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('personal_access_tokens');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('products', function (Blueprint $table) {
+            $table->id();
+            $table->string('name'); // الاسم
+            $table->decimal('price', 12, 2); // السعر
+            $table->unsignedInteger('stock')->default(0)->nullable(); // الكمية
+            $table->string('subtitle')->nullable(); // عنوان فرعي
+            $table->string('category')->index(); // منتج
+            $table->text('description')->nullable(); // وصف
+            $table->text('image_url')->nullable(); // الصورة الاساسية للعرض
+            $table->json('images')->nullable(); // الصورر الفرعية للمنتج
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('products');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('orders', function (Blueprint $table) {
+            $table->id();
+            $table->string('customer_name');
+            $table->string('customer_phone', 40)->nullable();
+            $table->string('customer_email')->nullable();
+            $table->text('shipping_address')->nullable();
+            $table->string('payment_method', 100)
+                ->default('Cash on Delivery');
+
+            $table->enum('status', [
+                'pending',
+                'confirmed',
+                'shipped',
+                'delivered',
+                'cancelled',
+            ])->default('pending');
+
+            $table->decimal('subtotal', 12, 2)->default(0); // سعر كلمنج لحاله
+            $table->decimal('total', 12, 2)->default(0); // السعر الاجمالي للطلب
+            $table->timestamp('delivered_at')->nullable(); // تاريخ تسلم الطلب
+            $table->timestamps();
+
+            $table->index(['status', 'delivered_at']); // بحث وفلترة
+        });
+    }
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('orders');
+    }
+};
+
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('order_items', function (Blueprint $table) {
+            $table->id();
+
+            $table->foreignId('order_id')
+                ->constrained('orders')
+                ->cascadeOnDelete();
+
+            $table->foreignId('product_id')
+                ->nullable()
+                ->constrained('products')
+                ->nullOnDelete();
+
+            $table->string('name');
+            $table->decimal('price', 12, 2);
+            $table->unsignedInteger('qty');
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('order_items');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('inquiries', function (Blueprint $table) {
+            $table->id();
+            $table->string('company');
+            $table->string('contact');
+            $table->string('email');
+            $table->string('phone', 40);
+            $table->string('quantity', 100)->nullable();
+            $table->text('details')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('inquiries');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('partners', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('url')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('partners');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('settings', function (Blueprint $table) {
+            $table->id();
+            $table->string('settingName')
+                ->default('Heart Made Zone');
+            $table->string('settingEmail')
+                ->default('hello@heartmadezone.com');
+            $table->string('settingLocation')
+                ->default('Amman, Jordan');
+            $table->text('settingInstagram')->nullable();
+            $table->text('settingFacebook')->nullable();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('settings');
+    }
+};
+
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('admin_notifications', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->text('message');
+            $table->string('type', 50)->default('general');
+
+            $table->foreignId('order_id')
+                ->nullable()
+                ->constrained('orders')
+                ->nullOnDelete();
+
+            $table->foreignId('inquiry_id')
+                ->nullable()
+                ->constrained('inquiries')
+                ->nullOnDelete();
+
+            $table->timestamp('read_at')->nullable()->index();
+            $table->timestamps();
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('admin_notifications');
+    }
+};
+
