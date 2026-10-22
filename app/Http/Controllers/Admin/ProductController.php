@@ -112,6 +112,26 @@ class ProductController extends Controller
                 'mimes:jpg,jpeg,png,webp',
                 'max:4096',
             ],
+        ], [
+            'required' => 'This field is required.',
+            'name.string' => 'Please enter a valid product name.',
+            'name.max' => 'The name must not exceed 255 characters.',
+            'price.numeric' => 'Please enter a valid price.',
+            'price.decimal' => 'Use no more than two decimal places.',
+            'price.min' => 'The price must be zero or greater.',
+            'price.max' => 'The price must not exceed 9999999999.99.',
+            'stock.integer' => 'Stock must be a whole number.',
+            'stock.min' => 'Stock must be zero or greater.',
+            'stock.max' => 'Stock must not exceed 4294967295.',
+            'category.string' => 'Please select a valid category.',
+            'category.max' => 'The category must not exceed 255 characters.',
+            'subtitle.max' => 'The short summary must not exceed 255 characters.',
+            'dimensions.max' => 'Dimensions must not exceed 255 characters.',
+            'whats_included.max' => "What's included must not exceed 10000 characters.",
+            'image_files.max' => 'A product can have no more than 10 images in total.',
+            'image_files.*.image' => 'Choose a valid JPG, PNG, or WebP image.',
+            'image_files.*.mimes' => 'Choose a valid JPG, PNG, or WebP image.',
+            'image_files.*.max' => 'Each image must not exceed 4 MB.',
         ]);
     }
 
